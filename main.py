@@ -4,11 +4,14 @@ import sys
 import subprocess
 import json
 
+
 def print_to_stderr(*a):
-    print(*a, file = sys.stderr)
+    print(*a, file=sys.stderr)
+
 
 # change this for other languages (3 character code)
-LANG = ["eng","nor"]
+AUDIO_LANG = ["eng", "jpn"]
+SUBTITLE_LANG = ["eng"]
 
 # set this to the path for mkvmerge
 MKVMERGE = "/usr/bin/mkvmerge"
@@ -31,6 +34,8 @@ for root, dirs, files in os.walk(in_dir):
         if not f.endswith(".mkv"):
             continue
 
+        print("working on file " + str(f))
+
         # path to file
         path = os.path.join(root, f)
 
@@ -38,10 +43,10 @@ for root, dirs, files in os.walk(in_dir):
         cmd = [MKVMERGE, "-J", path]
 
         # get mkv info
-        mkvmerge = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = mkvmerge.communicate()
-        if mkvmerge.returncode != 0:
-            print_to_stderr("mkvmerge failed to identify "+ path)
+        mkv_merge = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = mkv_merge.communicate()
+        if mkv_merge.returncode != 0:
+            print_to_stderr("mkvmerge failed to identify " + path)
             continue
 
         # find audio and subtitle tracks
@@ -62,8 +67,8 @@ for root, dirs, files in os.walk(in_dir):
             continue
 
         # filter out tracks that don't match the language
-        audio_lang = list(filter(lambda a: a['properties']['language'] in LANG, audio))
-        subtitle_lang = list(filter(lambda a: a['properties']['language'] in LANG, subtitle))
+        audio_lang = list(filter(lambda a: a['properties']['language'] in AUDIO_LANG, audio))
+        subtitle_lang = list(filter(lambda a: a['properties']['language'] in SUBTITLE_LANG, subtitle))
 
         # filter out files that don't need processing
         if audio_lang == audio and subtitle_lang == subtitle:
@@ -89,9 +94,9 @@ for root, dirs, files in os.walk(in_dir):
 
         # process file
         print_to_stderr("Processing " + path + "...")
-        mkvmerge = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = mkvmerge.communicate()
-        if mkvmerge.returncode != 0:
+        mkv_merge = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = mkv_merge.communicate()
+        if mkv_merge.returncode != 0:
             print_to_stderr("Failed")
             print(stdout)
             continue
