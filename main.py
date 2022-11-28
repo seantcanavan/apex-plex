@@ -90,7 +90,9 @@ for root, dirs, files in os.walk(in_dir):
             cmd += ["--subtitle-tracks", ",".join([str(s['id']) for s in subtitle_lang])]
             for i in range(len(subtitle_lang)):
                 cmd += ["--default-track", ":".join([str(subtitle_lang[i]['id']), "0"])]
+        cmd += ["--no-chapters", "--no-attachments"]
         cmd += [path]
+        print("cmd is " + str(cmd))
 
         # process file
         print_to_stderr("Processing " + path + "...")
