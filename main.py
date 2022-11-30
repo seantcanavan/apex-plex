@@ -3,7 +3,7 @@ import re
 import sys
 import subprocess
 import json
-
+from pprint import pprint
 
 def print_to_stderr(*a):
     print(*a, file=sys.stderr)
@@ -16,10 +16,52 @@ SUBTITLE_LANG = ["eng"]
 # set this to the path for mkvmerge
 MKVMERGE = "/usr/bin/mkvmerge"
 
-AUDIO_RE = re.compile(
-    r"Track ID (\d+): audio \([A-Z0-9_/]+\) [number:\d+ uid:\d+ codec_id:[A-Z0-9_/]+ codec_private_length:\d+ language:([a-z]{3})")
-SUBTITLE_RE = re.compile(
-    r"Track ID (\d+): subtitles \([A-Z0-9_/]+\) [number:\d+ uid:\d+ codec_id:[A-Z0-9_/]+ codec_private_length:\d+ language:([a-z]{3})(?: track_name:\w*)? default_track:[01]{1} forced_track:([01]{1})")
+# AUDIO_RE = re.compile(
+#     r"Track ID (\d+): audio \([A-Z0-9_/]+\) [number:\d+ uid:\d+ codec_id:[A-Z0-9_/]+ codec_private_length:\d+ language:([a-z]{3})")
+# SUBTITLE_RE = re.compile(
+#     r"Track ID (\d+): subtitles \([A-Z0-9_/]+\) [number:\d+ uid:\d+ codec_id:[A-Z0-9_/]+ codec_private_length:\d+ language:([a-z]{3})(?: track_name:\w*)? default_track:[01]{1} forced_track:([01]{1})")
+
+
+def map_audio_tracks(flat_audio_tracks):
+    track_map = {}
+    for current_track in flat_audio_tracks:
+        track_lang = current_track['properties']['language']
+        track_channels = current_track['properties']['audio_channels']
+        if track_lang not in track_map:
+            track_map[track_lang] = {}
+        if track_channels not in track_map[track_lang]:
+            track_map[track_lang][track_channels] = []
+        track_map[track_lang][track_channels].append(current_track)
+    return track_map
+
+def prefer_ac3(some_tracks):
+    ac3_track = ''
+    for some_track in some_tracks:
+
+
+def filter_audio_tracks(track_map):
+    winning_tracks = []
+    # two channel audio only
+    for current_lang in ['eng', 'jpn']:
+        if 6 not in track_map[current_lang] and 8 not in track_map[current_lang]:
+            winning_tracks.append(track_map[2])
+        elif 2 not in track_map[current_lang] and 8 not in track_map[current_lang]:
+            winning_tracks.append(track_map[6])
+        elif 2 not in track_map[current_lang] and 6 not in track_map[current_lang]:
+            winning_tracks.append(track_map[8])
+
+def map_subtitle_tracks(flat_subtitle_tracks):
+    track_map = {}
+    for current_track in flat_subtitle_tracks:
+        track_lang = current_track['properties']['language']
+        track_codec = current_track['codec']
+        if track_lang not in track_map:
+            track_map[track_lang] = {}
+        if track_codec not in track_map[track_lang]:
+            track_map[track_lang][track_codec] = []
+        track_map[track_lang][track_codec].append(current_track)
+    return track_map
+
 
 if len(sys.argv) < 2:
     print("Please supply an input directory")
@@ -50,30 +92,41 @@ for root, dirs, files in os.walk(in_dir):
             continue
 
         # find audio and subtitle tracks
-        audio = []
-        subtitle = []
+        all_audio_tracks = []
+        all_subtitle_tracks = []
         info_json = json.loads(stdout)
         tracks = info_json['tracks']
         for track in tracks:
             track['properties']['id'] = track['id']
             if track['type'] == 'audio':
-                audio.append(track)
+                all_audio_tracks.append(track)
             elif track['type'] == 'subtitles':
-                subtitle.append(track)
+                all_subtitle_tracks.append(track)
 
-        # filter out files that don't need processing
-        if len(audio) < 2 and len(subtitle) < 2:
-            print_to_stderr("nothing to do for " + path)
+        mapped_audio_tracks = map_audio_tracks(all_audio_tracks)
+        mapped_subtitle_tracks = map_subtitle_tracks(all_subtitle_tracks)
+
+        pprint(mapped_audio_tracks)
+        pprint(mapped_subtitle_tracks)
+
+        filtered_audio = filter_audio_tracks(mapped_audio_tracks)
+        filtered_subtitle_tracks = filter_subtitle_tracks(mapped_subtitle_tracks)
+
+        pprint(filtered_audio)
+        pprint(filtered_subtitle_tracks)
+
+        if len(filtered_audio) == len(all_audio_tracks) && len(filtered_subtitle_tracks) == len(all_subtitle_tracks):
+            print_to_stderr("mapped and filtered and have the same amount of tracks " + path)
             continue
 
         # filter out tracks that don't match the language
-        audio_lang = list(filter(lambda a: a['properties']['language'] in AUDIO_LANG, audio))
-        subtitle_lang = list(filter(lambda a: a['properties']['language'] in SUBTITLE_LANG, subtitle))
+        audio_lang = list(filter(lambda a: a['properties']['language'] in AUDIO_LANG, all_audio_tracks))
+        subtitle_lang = list(filter(lambda a: a['properties']['language'] in SUBTITLE_LANG, all_subtitle_tracks))
 
         # filter out files that don't need processing
-        if audio_lang == audio and subtitle_lang == subtitle:
-            print_to_stderr("nothing to do for " + path)
-            continue
+        # if audio_lang == audio and subtitle_lang == subtitle:
+        #     print_to_stderr("nothing to do for " + path)
+        #     continue
 
         # filter out files that don't need processing
         if len(audio_lang) == 0 and len(subtitle_lang) == 0:
