@@ -1,9 +1,9 @@
 import os
-import re
 import sys
 import subprocess
 import json
 from pprint import pprint
+
 
 def print_to_stderr(*a):
     print(*a, file=sys.stderr)
@@ -15,11 +15,6 @@ SUBTITLE_LANG = ["eng"]
 
 # set this to the path for mkvmerge
 MKVMERGE = "/usr/bin/mkvmerge"
-
-# AUDIO_RE = re.compile(
-#     r"Track ID (\d+): audio \([A-Z0-9_/]+\) [number:\d+ uid:\d+ codec_id:[A-Z0-9_/]+ codec_private_length:\d+ language:([a-z]{3})")
-# SUBTITLE_RE = re.compile(
-#     r"Track ID (\d+): subtitles \([A-Z0-9_/]+\) [number:\d+ uid:\d+ codec_id:[A-Z0-9_/]+ codec_private_length:\d+ language:([a-z]{3})(?: track_name:\w*)? default_track:[01]{1} forced_track:([01]{1})")
 
 
 def map_audio_tracks(flat_audio_tracks):
@@ -34,21 +29,31 @@ def map_audio_tracks(flat_audio_tracks):
         track_map[track_lang][track_channels].append(current_track)
     return track_map
 
+
 def prefer_ac3(some_tracks):
-    ac3_track = ''
     for some_track in some_tracks:
+        if some_track['codec'] == 'AC-3':
+            return [some_track]
+    return some_tracks
 
 
 def filter_audio_tracks(track_map):
     winning_tracks = []
-    # two channel audio only
     for current_lang in ['eng', 'jpn']:
-        if 6 not in track_map[current_lang] and 8 not in track_map[current_lang]:
-            winning_tracks.append(track_map[2])
-        elif 2 not in track_map[current_lang] and 8 not in track_map[current_lang]:
-            winning_tracks.append(track_map[6])
-        elif 2 not in track_map[current_lang] and 6 not in track_map[current_lang]:
-            winning_tracks.append(track_map[8])
+        if 6 not in track_map[current_lang] and 8 not in track_map[current_lang] and 2 in track_map[current_lang]:
+            winning_tracks.append(prefer_ac3(track_map[current_lang][2]))
+        elif 2 not in track_map[current_lang] and 8 not in track_map[current_lang] and 6 in track_map[current_lang]:
+            winning_tracks.append(prefer_ac3(track_map[current_lang][6]))
+        elif 2 not in track_map[current_lang] and 6 not in track_map[current_lang] and 8 in track_map[current_lang]:
+            winning_tracks.append(prefer_ac3(track_map[current_lang][8]))
+        elif 6 in track_map[current_lang]:
+            winning_tracks.append(prefer_ac3(track_map[current_lang][6]))
+        elif 2 in track_map[current_lang]:
+            winning_tracks.append(prefer_ac3(track_map[current_lang][2]))
+        else:
+            winning_tracks.append(prefer_ac3(track_map[current_lang][8]))
+    return winning_tracks
+
 
 def map_subtitle_tracks(flat_subtitle_tracks):
     track_map = {}
@@ -61,6 +66,12 @@ def map_subtitle_tracks(flat_subtitle_tracks):
             track_map[track_lang][track_codec] = []
         track_map[track_lang][track_codec].append(current_track)
     return track_map
+
+
+def filter_subtitle_tracks(flat_subtitle_tracks):
+    winning_tracks = []
+    for current_lang in ['eng']:
+
 
 
 if len(sys.argv) < 2:
@@ -115,9 +126,9 @@ for root, dirs, files in os.walk(in_dir):
         pprint(filtered_audio)
         pprint(filtered_subtitle_tracks)
 
-        if len(filtered_audio) == len(all_audio_tracks) && len(filtered_subtitle_tracks) == len(all_subtitle_tracks):
-            print_to_stderr("mapped and filtered and have the same amount of tracks " + path)
-            continue
+        # if len(filtered_audio) == len(all_audio_tracks) and len(filtered_subtitle_tracks) == len(all_subtitle_tracks):
+        #     print_to_stderr("mapped and filtered and have the same amount of tracks " + path)
+        #     continue
 
         # filter out tracks that don't match the language
         audio_lang = list(filter(lambda a: a['properties']['language'] in AUDIO_LANG, all_audio_tracks))
